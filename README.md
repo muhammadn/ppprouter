@@ -9,6 +9,6 @@ kernel source code is not updated to the latest.
 
 ### Note
 
-* I wanted to make it work quickly, so i had to resort to use commands as mentioned below.
+* I wanted to make it work quickly to load balance between my 4G and Fiber, so i had to resort to use commands as mentioned below.
 * This is a work in progress. It is not complete as it requires `ifmetric` and `curl`
 * Will be replacing `ifmetric` and `curl` with native Go libraries (good for systems that does not have/or want to have those commands installed)
