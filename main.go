@@ -6,7 +6,9 @@ import (
   "time"
   "regexp"
   "os/exec"
-  "os"
+//  "os"
+  "golang.org/x/sys/unix"
+  "github.com/jsimonetti/rtnetlink"
 )
 
 func main() {
@@ -23,6 +25,70 @@ func main() {
                         pppInt = append(pppInt, interfaces[i].Name)
                 }
         }
+
+	// Dial a connection to the rtnetlink socket
+	conn, err := rtnetlink.Dial(nil)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer conn.Close()
+
+        if len(pppInt) > 0 {
+                fmt.Println("There are ppp interfaces(s): ", pppInt)
+
+
+                /* Still a work-in-progress
+                for {
+                        for i := 0; i < len(pppInt); i++ {
+                                        ppp := testNetwork2(pppInt[i])
+                                        if !ppp {
+                                                	iface, _ := net.InterfaceByName(pppInt[i])
+	                                                attr := rtnetlink.RouteAttributes{
+		                                                OutIface: uint32(iface.Index),
+                                                                Gateway: net.ParseIP("127.0.0.1"),
+                                                                Priority: 100,
+	                                                }
+
+                                                        fmt.Println(fmt.Sprintf("ppp device %s cannot connect to internet, deprioritizing!", pppInt[i]))
+    	                                                err = conn.Route.Replace(&rtnetlink.RouteMessage{
+		                                                Family:     unix.AF_INET,
+		                                                Table:      unix.RT_TABLE_MAIN,
+		                                                Protocol:   unix.RTPROT_BOOT,
+		                                                Scope:      unix.RT_SCOPE_LINK,
+		                                                Type:       unix.RTN_UNICAST,
+		                                                Attributes: attr,
+	                                               })
+
+                                        } else {
+                                                        iface, _ := net.InterfaceByName(pppInt[i])
+                                                        attr := rtnetlink.RouteAttributes{
+                                                                OutIface: uint32(iface.Index),
+                                                                Gateway: net.ParseIP("127.0.0.1"),
+                                                                Priority: 0,
+                                                        }
+
+
+                                                        //routes, _ := conn.Route.List()
+                                                        //fmt.Println("Routes: ", routes[0])
+                                                        //address, _ := conn.Address.List()
+                                                        //fmt.Println("Address: ", address[1].Attributes.Label)
+
+
+                                                        fmt.Println(fmt.Sprintf("ppp device %s can access the internet, setting %s metric", pppInt[i], pppInt[i]))
+                                                        err = conn.Route.Replace(&rtnetlink.RouteMessage{
+                                                                Family:     unix.AF_INET,
+                                                                Table:      unix.RT_TABLE_MAIN,
+                                                                Protocol:   unix.RTPROT_BOOT,
+                                                                Scope:      unix.RT_SCOPE_LINK,
+                                                                Type:       unix.RTN_UNICAST,
+                                                                Attributes: attr,
+                                                       })
+                                      }
+                                      time.Sleep(5 * time.Second)
+                        }
+                }
+
+        } */
 
         if len(pppInt) > 0 {
                 fmt.Println("There are ppp interfaces(s): ", pppInt)
@@ -43,8 +109,8 @@ func main() {
                                                 changeMetric(pppInt[i], "30")
                                                 fmt.Println(fmt.Sprintf("ppp device %s can access the internet, setting %s metric", pppInt[i], pppInt[i]))
                                         } else {
+                                                fmt.Println(fmt.Sprintf("ppp device %s cannot connect to internet, deprioritizing!", pppInt[i]))
                                                 changeMetric(pppInt[i], "100")
-                                                fmt.Println(fmt.Sprintf("ppp device %s cannot connect to internet", pppInt[i]))
                                         }
                                         time.Sleep(5 * time.Second)
                        }
