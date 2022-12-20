@@ -6,7 +6,8 @@ import (
   "time"
   "regexp"
   "os/exec"
-  "os"
+  "golang.org/x/sys/unix"
+  "github.com/jsimonetti/rtnetlink"
 )
 
 func main() {
@@ -24,58 +25,58 @@ func main() {
                 }
         }
 
+	// Dial a connection to the rtnetlink socket
+	conn, err := rtnetlink.Dial(nil)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer conn.Close()
+
         if len(pppInt) > 0 {
                 fmt.Println("There are ppp interfaces(s): ", pppInt)
 
+
                 for {
                         for i := 0; i < len(pppInt); i++ {
-                                        changeMetric(pppInt[i], "10")
-                                        ppp := testNetwork2(pppInt[i])
-                                        if ppp {
-                                                /* if pppInt[i] == "ppp0" {
-                                                        fmt.Println("Setting ppp0 as priority")
-                                                        changeMetric(pppInt[i], "20") 
-                                                } else { 
-                                                        changeMetric(pppInt[i], "30")
-                                                        fmt.Println(fmt.Sprintf("ppp device %s can access the internet, setting device as backup", pppInt[i]))
-                                                } */
-
-                                                changeMetric(pppInt[i], "30")
-                                                fmt.Println(fmt.Sprintf("ppp device %s can access the internet, setting %s metric", pppInt[i], pppInt[i]))
+                                        changeMetric(conn, pppInt[i], 0)
+                                        ppp := checkInternet(pppInt[i])
+                                        if !ppp {
+                                                fmt.Println(fmt.Sprintf("ppp device %s cannot connect to internet, deprioritizing!", pppInt[i]))
+                                                changeMetric(conn, pppInt[i], 100)
                                         } else {
-                                                changeMetric(pppInt[i], "100")
-                                                fmt.Println(fmt.Sprintf("ppp device %s cannot connect to internet", pppInt[i]))
+                                                fmt.Println(fmt.Sprintf("ppp device %s can access the internet, setting %s metric", pppInt[i], pppInt[i]))
+                                                changeMetric(conn, pppInt[i], 0)
                                         }
-                                        time.Sleep(5 * time.Second)
-                       }
+                                        time.Sleep(20 * time.Second)
+                        }
                 }
-        } else {
-                fmt.Println("There is no ppp interface")
-                os.Exit(1)
-        }
 
-        //ppp0, _ := netlink.LinkByName("ppp0")
-        //ppp1, _ := netlink.LinkByName("ppp1")
-}
-
-func changeMetric(netinterface string, priority string) {
-        cmd := exec.Command("ifmetric", netinterface, priority)
-
-        if err := cmd.Start(); err != nil {
-                fmt.Println("cmd.Start: %v", err)
-        }
-
-        if err := cmd.Wait(); err != nil {
-                //if exiterr, ok := err.(*exec.ExitError); ok {
-                if _, ok := err.(*exec.ExitError); ok {
-                    //fmt.Println("ifmetric exit error: ", exiterr)
-                } else {
-                    fmt.Println("cmd.Wait: %v", err)
-                }
         }
 }
 
-func testNetwork2(netinterface string) bool {
+func changeMetric(conn *rtnetlink.Conn, netinterface string, metric uint32) {
+
+        iface, _ := net.InterfaceByName(netinterface)
+        attr := rtnetlink.RouteAttributes{
+                OutIface: uint32(iface.Index),
+                Priority: metric,
+        }
+
+        err := conn.Route.Replace(&rtnetlink.RouteMessage{
+                Family:     unix.AF_INET,
+                Table:      unix.RT_TABLE_MAIN,
+                Protocol:   unix.RTPROT_BOOT,
+                Scope:      unix.RT_SCOPE_LINK,
+                Type:       unix.RTN_UNICAST,
+                Attributes: attr,
+        })
+
+        if err != nil {
+                fmt.Println("Error replacing route: ", err)
+        }
+}
+
+func checkInternet(netinterface string) bool {
         cmd := exec.Command("curl", "--interface", netinterface, "--connect-timeout", "10", "https://8.8.8.8")
 
         if err := cmd.Start(); err != nil {
