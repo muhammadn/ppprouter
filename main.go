@@ -5,7 +5,6 @@ import (
   "net"
   "time"
   "regexp"
-  "os/exec"
   "golang.org/x/sys/unix"
   "github.com/jsimonetti/rtnetlink"
 )
@@ -39,7 +38,7 @@ func main() {
                 for {
                         for i := 0; i < len(pppInt); i++ {
                                         changeMetric(conn, pppInt[i], 0)
-                                        ppp := checkInternet(pppInt[i])
+                                        ppp := testConnection(pppInt[i])
                                         if !ppp {
                                                 fmt.Println(fmt.Sprintf("ppp device %s cannot connect to internet, deprioritizing!", pppInt[i]))
                                                 changeMetric(conn, pppInt[i], 100)
@@ -47,8 +46,8 @@ func main() {
                                                 fmt.Println(fmt.Sprintf("ppp device %s can access the internet, setting %s metric", pppInt[i], pppInt[i]))
                                                 changeMetric(conn, pppInt[i], 0)
                                         }
-                                        time.Sleep(20 * time.Second)
                         }
+                        time.Sleep(30 * time.Second)
                 }
 
         }
@@ -76,29 +75,7 @@ func changeMetric(conn *rtnetlink.Conn, netinterface string, metric uint32) {
         }
 }
 
-func checkInternet(netinterface string) bool {
-        cmd := exec.Command("curl", "--interface", netinterface, "--connect-timeout", "10", "https://8.8.8.8")
-
-        if err := cmd.Start(); err != nil {
-                fmt.Println("cmd.Start: %v", err)
-                return false
-        }
-
-        if err := cmd.Wait(); err != nil {
-                //if exiterr, ok := err.(*exec.ExitError); ok {
-                if _, ok := err.(*exec.ExitError); ok {
-                    //fmt.Println("curl exit error: ", exiterr)
-                    return false
-                } else {
-                    fmt.Println("cmd.Wait: %v", err)
-                    return false
-                }
-        }
-
-        return true
-}
-
-func testNetwork(netinterface string) bool {
+func testConnection(netinterface string) bool {
         nic, err := net.InterfaceByName(netinterface)
         if err != nil {
             fmt.Println(err)
